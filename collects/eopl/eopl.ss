@@ -40,7 +40,7 @@
   ;;   2) Exception jumps by the test harness are performed through
   ;;      call/cc, not call/ec.
   ;;
-  ;; Solution: use `namespace-variable-binding', and create an escape
+  ;; Solution: use `namespace-variable-value', and create an escape
   ;; continuation for each nested continuation.
 
   (define esc-cont-mark-key (gensym))
@@ -73,14 +73,14 @@
 	    ;; reuse `mark' instead of creating a new escape continuation:
 	    (k (mk-k k mark))))))
   
-  (namespace-variable-binding 'eopl:error-stop #f)
+  (namespace-set-variable-value! 'eopl:error-stop #f #t)
   (current-exception-handler 
    (let ([eh (current-exception-handler)]
 	 [orig-namespace (current-namespace)])
      (lambda (x)
        (let ([v (with-handlers ([void (lambda (x) #f)])
 		  (parameterize ([current-namespace orig-namespace])
-		    (namespace-variable-binding 'eopl:error-stop)))])
+		    (namespace-variable-value 'eopl:error-stop)))])
 	 (if v
 	     (parameterize ([recovering-from-error #t])
 	       (v))
