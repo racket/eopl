@@ -74,20 +74,20 @@
 	    (k (mk-k k mark))))))
   
   (namespace-set-variable-value! 'eopl:error-stop #f #t)
-  (define eopl-exception-handler 
-   (let ([eh (current-exception-handler)]
-	 [orig-namespace (current-namespace)])
-     (lambda (x)
-       (let ([v (with-handlers ([void (lambda (x) #f)])
-		  (parameterize ([current-namespace orig-namespace])
-		    (namespace-variable-value 'eopl:error-stop)))])
-	 (if v
-	     (parameterize ([recovering-from-error #t])
-	       (v))
-	     (eh x))))))
-  (current-exception-handler eopl-exception-handler)
+  (define (install-eopl-exception-handler)
+    (current-exception-handler 
+     (let ([eh (current-exception-handler)]
+	   [orig-namespace (current-namespace)])
+       (lambda (x)
+	 (let ([v (with-handlers ([void (lambda (x) #f)])
+		    (parameterize ([current-namespace orig-namespace])
+		      (namespace-variable-value 'eopl:error-stop)))])
+	   (if v
+	       (parameterize ([recovering-from-error #t])
+		 (v))
+	       (eh x)))))))
   
-  (provide eopl-exception-handler)
+  (provide install-eopl-exception-handler)
   
   ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
