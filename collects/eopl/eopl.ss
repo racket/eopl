@@ -26,14 +26,66 @@
 
   (provide (all-from "private/sllgen.ss"))
 
-  (define (eopl:error-stop)
-    ((error-escape-handler)))
-
   (provide (rename error eopl:error)
 	   (rename printf eopl:printf)
-	   (rename pretty-print eopl:pretty-print)
-	   eopl:error-stop)
+	   (rename pretty-print eopl:pretty-print))
 
+  ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+  ;; Ugly: 
+  ;;
+  ;;   1) `eopl:error-stop' has to be a top-level binding to be
+  ;;      mutated by client programs --- actually, the test harness ---
+  ;;      for exception handling.
+  ;;   2) Exception jumps by the test harness are performed through
+  ;;      call/cc, not call/ec.
+  ;;
+  ;; Solution: use `namespace-variable-binding', and create an escape
+  ;; continuation for each nested continuation.
+
+  (define esc-cont-mark-key (gensym))
+  (define recovering-from-error (make-parameter #f))
+  (define (mk-k k ek)
+    (lambda args 
+      (apply (if (recovering-from-error) ek k) args)))
+
+  (define (eopl:call-with-current-continuation f)
+    (unless (and (procedure? f)
+		 (procedure-arity-includes? f 1))
+      ;; let call/cc report the error:
+      (call/cc f))
+    (let/cc k
+      (let ([mark (car (continuation-mark-set->list
+			(continuation-marks k)
+			esc-cont-mark-key
+			'skip))])
+	(if (eq? 'skip mark)
+	    ;; Create an escape continuation to use for
+	    ;; error escapes. Of course, we rely on the fact
+	    ;; that continuation marksare not visible to EoPL
+	    ;; programs.
+	    (let/ec ek
+	      (with-continuation-mark
+	       esc-cont-mark-key
+	       ek
+	       (f (mk-k k ek))))
+	    ;; To preserve tail semantics forall but the first call
+	    ;; reuse `mark' instead of creating a new escape continuation:
+	    (k (mk-k k mark))))))
+  
+  (namespace-variable-binding 'eopl:error-stop #f)
+  (current-exception-handler 
+   (let ([eh (current-exception-handler)]
+	 [orig-namespace (current-namespace)])
+     (lambda (x)
+       (let ([v (with-handlers ([void (lambda (x) #f)])
+		  (parameterize ([current-namespace orig-namespace])
+		    (namespace-variable-binding 'eopl:error-stop)))])
+	 (if v
+	     (parameterize ([recovering-from-error #t])
+	       (v))
+	     (eh x))))))
+  
   ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
   (provide always? list-of)
@@ -76,7 +128,8 @@
 	   cdaaar cdaadr cdadar cdaddr cddaar cddadr cdddar cddddr
 	   map = < > <= >= max min + - * / 
 	   abs gcd lcm exp log sin cos tan not eq?
-	   call-with-current-continuation make-string
+	   (rename eopl:call-with-current-continuation call-with-current-continuation)
+	   make-string
 	   symbol->string string->symbol make-rectangular 
 	   exact->inexact inexact->exact number->string string->number 
 	   rationalize output-port? current-input-port current-output-port current-error-port 
