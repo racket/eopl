@@ -109,7 +109,7 @@
                          (let ([variant-name 
                                 (lambda (field-name ...)
                                   (unless (field-pred field-name)
-                                    (error (quote variant-name)
+                                    (error vname
                                            "bad value for ~a field: ~e"
                                            (quote field-name)
                                            field-name))
