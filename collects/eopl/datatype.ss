@@ -80,13 +80,14 @@
 		  ;; Also, this isn't a transformer function, so any direct
 		  ;;  use of the name will trigger a syntax error. The name
 		  ;;  can be found by `syntax-local-value', though.
-		  (make-dt (syntax pred-name)
-			   (list
-			    (make-vt (syntax variant-name)
-                                     (syntax variant?)
-                                     (syntax variant-accessor)
-				     variant-field-count)
-			    ...)))
+		  (let ([cert (syntax-local-certifier)])
+		    (make-dt (cert (syntax pred-name))
+			     (list
+			      (make-vt (cert (syntax variant-name))
+				       (cert (syntax variant?))
+				       (cert (syntax variant-accessor))
+				       variant-field-count)
+			      ...))))
 		;; Bind the predicate and selector functions:
 		(define-values (pred-name
 				variant-name ...
