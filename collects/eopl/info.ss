@@ -1,10 +1,5 @@
 (module info (lib "infotab.ss" "setup")
   (define name "EoPL")
-  (define drscheme-language-modules (list '("eopl.ss" "eopl")))
-  (define drscheme-language-positions (list '("Essentials of Programming Languages (2nd edition)")))
-  (define drscheme-language-numbers (list '(-400)))
-  (define drscheme-language-one-line-summaries
-    (list "Based on the Friedman, Wand, and Haynes text"))
   (define tools (list "eopl-tool.ss"))
   (define tool-icons (list '("eopl-small.gif" "eopl")))
   (define tool-names (list "Essentials of Programming Languages")))

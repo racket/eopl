@@ -74,7 +74,7 @@
 	    (k (mk-k k mark))))))
   
   (namespace-set-variable-value! 'eopl:error-stop #f #t)
-  (current-exception-handler 
+  (define eopl-exception-handler 
    (let ([eh (current-exception-handler)]
 	 [orig-namespace (current-namespace)])
      (lambda (x)
@@ -85,6 +85,9 @@
 	     (parameterize ([recovering-from-error #t])
 	       (v))
 	     (eh x))))))
+  (current-exception-handler eopl-exception-handler)
+  
+  (provide eopl-exception-handler)
   
   ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
