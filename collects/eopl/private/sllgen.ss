@@ -31,17 +31,14 @@
  (define sllgen:make-rep-loop
    (lambda (prompt eval-fn stream-parser)
     (lambda ()
-      (display prompt)
+      (display prompt) (flush-output)
       (let loop
         ((ast-stream (stream-parser (sllgen:stdin-char-stream))))
-        ;; these seem not to make a difference
-        ;; (flush-output-port)               ; chez
-        ;; (flush-output)                    ; dr scheme
         (sllgen:stream-get! ast-stream
           (lambda (tree stream)
             (write (eval-fn tree))
             (newline)
-            (display prompt)
+            (display prompt) (flush-output)
             (loop stream))
           (lambda () #t))))))
 
