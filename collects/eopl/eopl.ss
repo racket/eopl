@@ -54,6 +54,8 @@
 
   ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+  (provide time) ;; useful to compare implementations
+
   ;; Unfortunately, most of the rest is cut-and-pasted from R5RS:
 
   ;; values
