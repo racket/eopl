@@ -195,7 +195,7 @@
 						     (and (module-identifier=? variant vt-name)
 							  dtv)))
 						 (dt-variants dt))]
-                                         [orig-variant (vt-name-stx vt)])
+                                         [orig-variant (and vt (vt-name-stx vt))])
 				    (unless orig-variant
 				      (raise-syntax-error 
 				       #f
