@@ -58,7 +58,8 @@
   (provide time            ;; useful to compare implementations
 	   collect-garbage ;; useful with `time'
 	   empty           ;; for constructor-based printing
-	   trace untrace)  ;; debugging
+	   trace untrace   ;; debugging
+	   provide)        ;; in case someone wants to use a module
 
   ;; Unfortunately, most of the rest is cut-and-pasted from R5RS:
 
