@@ -1,9 +1,10 @@
 
+;; NOTE: datatypes are currently transparent, for the sake of EoPL's
+;; use of `equal?'
+
 (module datatype mzscheme
 
   (require-for-syntax "private/utils.ss")
-
-  (define-struct element ())
 
   (define-syntax define-datatype
     (lambda (stx)
@@ -77,10 +78,11 @@
 		  ;; Create a new structure for the datatype (using the
 		  ;; datatype name in `struct', so it prints nicely).
 		  (let-values ([(struct:x make-x x? acc mut)
-				(make-struct-type 'name struct:element 0 0)])
+				(make-struct-type 'name #f 0 0 #f null (make-inspector))])
                     (let-values ([(struct:variant make-variant variant? 
                                                   variant-accessor variant-mutator)
-                                  (make-struct-type 'variant-name struct:x variant-field-count 0)]
+                                  (make-struct-type 'variant-name struct:x variant-field-count 0
+                                                    #f null (make-inspector))]
                                  ...)
                       ;; User-available functions:
                       (values
