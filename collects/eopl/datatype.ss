@@ -18,7 +18,7 @@
 	     (raise-syntax-error #f
 				 "expected an identifier for the datatype name"
 				 stx (syntax name)))
-	   (unless (identifier? (syntax name))
+	   (unless (identifier? (syntax pred-name))
 	     (raise-syntax-error #f
 				 "expected an identifier for the predicate name"
 				 stx (syntax pred-name)))
