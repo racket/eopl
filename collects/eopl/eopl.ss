@@ -44,7 +44,6 @@
   ;; continuation for each nested continuation.
 
   (define esc-cont-mark-key (gensym))
-  (define detect-tail-key (gensym))
   (define recovering-from-error (make-parameter #f))
   (define (mk-k k ek)
     (lambda args 
@@ -56,33 +55,23 @@
       ;; let call/cc report the error:
       (call/cc f))
     (let/cc k
-      (let ([v (gensym)]
-	    [orig-marks (continuation-mark-set->list
-			 (continuation-marks k)
-			 detect-tail-key)])
-	(with-continuation-mark detect-tail-key v
-	  (let ([new-marks (continuation-mark-set->list
-			    (current-continuation-marks)
-			    detect-tail-key)])
-	    (if (or (null? orig-marks)
-		    (and (pair? (cdr new-marks))
-			 (eq? (car orig-marks) (cadr new-marks))))
-		;; Old mark surived => not tail wrt old call.
-		;; Create an escape continuation to use for
-		;; error escapes. Of course, we rely on the fact
-		;; that continuation marks are not visible to EoPL
-		;; programs.
-		(let/ec ek
-		  (with-continuation-mark esc-cont-mark-key ek
-		    (with-continuation-mark detect-tail-key (gensym)
-		      (f (mk-k k ek)))))
-		;; Old mark replaced => tail wrt old call.
-		;; To preserve tail semantics for all but the first call
-		;; reuse `mark' instead of creating a new escape continuation:
-		(let ([mark (car (continuation-mark-set->list
-				  (continuation-marks k)
-				  esc-cont-mark-key))])
-		  (f (mk-k k mark)))))))))
+      (let ([mark (car (continuation-mark-set->list
+			(continuation-marks k)
+			esc-cont-mark-key
+			'skip))])
+	(if (eq? 'skip mark)
+	    ;; Create an escape continuation to use for
+	    ;; error escapes. Of course, we rely on the fact
+	    ;; that continuation marksare not visible to EoPL
+	    ;; programs.
+	    (let/ec ek
+	      (with-continuation-mark
+	       esc-cont-mark-key
+	       ek
+	       (f (mk-k k ek))))
+	    ;; To preserve tail semantics forall but the first call
+	    ;; reuse `mark' instead of creating a new escape continuation:
+	    (k (mk-k k mark))))))
   
   (namespace-set-variable-value! 'eopl:error-stop #f #t)
   (define (install-eopl-exception-handler)
@@ -131,6 +120,7 @@
 	   collect-garbage ;; useful with `time'
 	   empty           ;; for constructor-based printing
 	   trace untrace   ;; debugging
+           require module  ;; we allow full use of modules
 	   provide)        ;; in case someone wants to use a module
 
   ;; Unfortunately, most of the rest is cut-and-pasted from R5RS:
