@@ -307,7 +307,7 @@
 	       (syntax
 		(let ([v expr])
 		  (if (not (pred v))
-		      (error 'case "not a ~a: ~s" 
+		      (error 'cases "not a ~a: ~s" 
 			     (quote datatype) v)
                       (cond
                         [(variant? v)
