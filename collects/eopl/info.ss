@@ -1,5 +1,8 @@
 (module info (lib "infotab.ss" "setup")
   (define name "EoPL Support")
-  (define tools (list "eopl-lang.ss"))
-  (define tool-names (list "Essentials of Prog Langs")))
+  (define drscheme-language-modules (list '("eopl.ss" "eopl")))
+  (define drscheme-language-positions (list '("Essentials of Programming Languages")))
+  (define tools (list "eopl-tool.ss"))
+  (define tool-icons (list '("eopl-small.gif" "eopl")))
+  (define tool-names (list "Essentials of Programming Languages")))
 
