@@ -54,7 +54,10 @@
 
   ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-  (provide time) ;; useful to compare implementations
+  (define empty null)
+
+  (provide time   ;; useful to compare implementations
+	   empty) ;; for constructor-based printing
 
   ;; Unfortunately, most of the rest is cut-and-pasted from R5RS:
 
