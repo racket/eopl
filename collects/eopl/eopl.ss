@@ -25,9 +25,7 @@
 
   (provide (all-from "private/sllgen.ss"))
 
-  (provide error
-	   (rename error eopl:error)
-	   printf
+  (provide (rename error eopl:error)
 	   (rename printf eopl:printf))
 
   ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
