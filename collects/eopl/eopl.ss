@@ -62,7 +62,7 @@
 	(if (eq? 'skip mark)
 	    ;; Create an escape continuation to use for
 	    ;; error escapes. Of course, we rely on the fact
-	    ;; that continuation marksare not visible to EoPL
+	    ;; that continuation marks are not visible to EoPL
 	    ;; programs.
 	    (let/ec ek
 	      (with-continuation-mark
