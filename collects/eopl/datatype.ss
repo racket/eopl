@@ -110,8 +110,9 @@
                                 (lambda (field-name ...)
                                   (unless (field-pred field-name)
                                     (error (quote variant-name)
-                                           "bad value for ~a field"
-                                           (quote field-name)))
+                                           "bad value for ~a field: ~e"
+                                           (quote field-name)
+                                           field-name))
                                   ...
                                   (make-variant field-name ...))])
                            variant-name))
