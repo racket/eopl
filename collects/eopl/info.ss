@@ -2,7 +2,7 @@
   (define name "EoPL")
   (define drscheme-language-modules (list '("eopl.ss" "eopl")))
   (define drscheme-language-positions (list '("Essentials of Programming Languages")))
+  (define drscheme-language-numbers (list '(-400)))
   (define tools (list "eopl-tool.ss"))
   (define tool-icons (list '("eopl-small.gif" "eopl")))
   (define tool-names (list "Essentials of Programming Languages")))
-
