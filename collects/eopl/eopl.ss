@@ -1,7 +1,8 @@
 (module eopl mzscheme
   (require "datatype.ss"
 	   "private/sllgen.ss"
-	   (lib "trace.ss"))
+	   (lib "trace.ss")
+	   (lib "pretty.ss"))
   (require-for-syntax "private/slldef.ss")
 
   (provide define-datatype
@@ -25,8 +26,13 @@
 
   (provide (all-from "private/sllgen.ss"))
 
+  (define (eopl:error-stop)
+    ((error-escape-handler)))
+
   (provide (rename error eopl:error)
-	   (rename printf eopl:printf))
+	   (rename printf eopl:printf)
+	   (rename pretty-print eopl:pretty-print)
+	   eopl:error-stop)
 
   ;; ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
