@@ -1155,7 +1155,8 @@
                   (or (and (pair? (cdr regexp))
 			   (char? (cadr regexp)))
 		      (error 'sllgen:parse-regexp "bad regexp ~s" regexp))
-                  (sllgen:make-tester-regexp regexp)))))
+                  (sllgen:make-tester-regexp regexp)))
+	  (else (error 'scanner-generation "bad regexp ~s" regexp))))
        (else (error 'scanner-generation "bad regexp ~s" regexp)))))
   
   (define sllgen:string->regexp
