@@ -104,7 +104,7 @@
 			    [else
 			     (let ([clause (car clauses)])
 			       (syntax-case clause (else)
-				 [(variant (field-id ...) body)
+				 [(variant (field-id ...) body0 body1 ...)
 				  (let* ([variant (syntax variant)]
 					 [orig-variant
 					  (ormap (lambda (dtv) 
@@ -165,9 +165,9 @@
 						    (loop (cdr clauses) (cons orig-variant saw-cases))])
 					(values (cons orig-variant ov)
 						(cons field-ids idss)
-						(cons (syntax body) bodys)
+						(cons (syntax (begin body0 body1 ...)) bodys)
 						else))))]
-				 [(else body)
+				 [(else body0 body1 ...)
 				  (begin
 				    (unless (null? (cdr clauses))
 				      (raise-syntax-error
@@ -175,8 +175,8 @@
 				       "else clause must be last"
 				       stx
 				       clause))
-				    (values null null null (syntax body)))]
-
+				    (values null null null (syntax (begin body0 body1 ...))))]
+				 
 				 [_else (raise-syntax-error
 					 #f
 					 "bad clause"
