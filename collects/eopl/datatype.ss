@@ -47,15 +47,32 @@
 				     (syntax->list 
 				      (syntax ((field-name ...) ...))))))]
                          [(variant? ...)
-                          (generate-temporaries variant-names)]
+                          (map (lambda (vn)
+                                 (datum->syntax-object
+                                  vn
+                                  (string->uninterned-symbol
+                                   (format "~a?" (syntax-e vn)))))
+                               variant-names)]
                          [(variant-accessor ...)
-                          (generate-temporaries variant-names)]
+                          (map (lambda (vn)
+                                 (datum->syntax-object
+                                  vn
+                                  (string->uninterned-symbol
+                                   (format "~a-accessor" (syntax-e vn)))))
+                               variant-names)]
                          [(variant-mutator ...)
                           (generate-temporaries variant-names)]
                          [(make-variant ...)
                           (generate-temporaries variant-names)]
                          [(struct:variant ...)
-                          (generate-temporaries variant-names)])
+                          (generate-temporaries variant-names)]
+                         [(make-variant-name ...)
+                          (map (lambda (vn)
+                                 (datum->syntax-object
+                                  vn
+                                  (string->symbol
+                                   (format "make-~a" (syntax-e vn)))))
+                               variant-names)])
 	     (syntax
 	      (begin
 		(define-syntax name 
@@ -100,7 +117,8 @@
                            variant-name))
                        ...
                        variant? ...
-                       variant-accessor ...))))))))]
+                       variant-accessor ...))))
+                (define-values (make-variant-name ...) (values variant-name ...))))))]
         [(_ name pred-name variant ...)
          ;; Must be a bad variant...
          (for-each (lambda (variant)

@@ -1,6 +1,7 @@
 (module eopl mzscheme
   (require "datatype.ss"
-	   "private/sllgen.ss")
+	   "private/sllgen.ss"
+	   (lib "trace.ss"))
   (require-for-syntax "private/slldef.ss")
 
   (provide define-datatype
@@ -58,7 +59,8 @@
 
   (provide time            ;; useful to compare implementations
 	   collect-garbage ;; useful with `time'
-	   empty)          ;; for constructor-based printing
+	   empty           ;; for constructor-based printing
+	   trace untrace)  ;; debugging
 
   ;; Unfortunately, most of the rest is cut-and-pasted from R5RS:
 
