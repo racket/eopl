@@ -3,7 +3,7 @@
 
   ;; Generative structure definitions:
   (define-struct dt (pred-stx variants))
-  (define-struct vt (name-stx field-count))
+  (define-struct vt (name-stx predicate-stx accessor-stx field-count))
   
   ;; Helper function:
   (define (variant-assq name-stx variants)
@@ -14,5 +14,5 @@
 	  (loop (cdr l)))))
   
   (provide (struct dt (pred-stx variants))
-	   (struct vt (name-stx field-count))
+	   (struct vt (name-stx predicate-stx accessor-stx field-count))
 	   variant-assq))

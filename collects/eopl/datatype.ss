@@ -3,7 +3,7 @@
 
   (require-for-syntax "private/utils.ss")
 
-  (define-struct element (tag fieldvals))
+  (define-struct element ())
 
   (define-syntax define-datatype
     (lambda (stx)
@@ -11,30 +11,30 @@
 	[(_ name pred-name 
 	    (variant-name (field-name field-pred) ...) 
 	    ...)
-	 (begin
+	 (let ([variant-names (syntax->list (syntax (variant-name ...)))])
 	   ;; More syntax checks...
 	   (unless (identifier? (syntax name))
 	     (raise-syntax-error #f
-				 "datatype name is not an indentifier"
+				 "expected an identifier for the datatype name"
 				 stx (syntax name)))
 	   (unless (identifier? (syntax name))
 	     (raise-syntax-error #f
-				 "predicate name is not an indentifier"
+				 "expected an identifier for the predicate name"
 				 stx (syntax pred-name)))
 	   (for-each (lambda (vt fields)
 		       (unless (identifier? vt)
 			 (raise-syntax-error 
 			  'cases 
-			  "variant name is not an indentifier"
+			  "expected an identifier for the variant name"
 			  stx vt))
 		       (for-each (lambda (field)
 				   (unless (identifier? field)
 				     (raise-syntax-error 
 				      'cases 
-				      "field name is not an indentifier"
+				      "expected an identifier for the field name"
 				      stx field)))
 				 (syntax->list fields)))
-		     (syntax->list (syntax (variant-name ...)))
+		     variant-names
 		     (syntax->list (syntax ((field-name ...) ...))))
 	   ;; Count the fields for each variant:
 	   (with-syntax ([(variant-field-count ...) 
@@ -44,7 +44,17 @@
 				    (map
 				     syntax->list
 				     (syntax->list 
-				      (syntax ((field-name ...) ...))))))])
+				      (syntax ((field-name ...) ...))))))]
+                         [(variant? ...)
+                          (generate-temporaries variant-names)]
+                         [(variant-accessor ...)
+                          (generate-temporaries variant-names)]
+                         [(variant-mutator ...)
+                          (generate-temporaries variant-names)]
+                         [(make-variant ...)
+                          (generate-temporaries variant-names)]
+                         [(struct:variant ...)
+                          (generate-temporaries variant-names)])
 	     (syntax
 	      (begin
 		(define-syntax name 
@@ -55,30 +65,82 @@
 		  (make-dt (syntax pred-name)
 			   (list
 			    (make-vt (syntax variant-name)
+                                     (syntax variant?)
+                                     (syntax variant-accessor)
 				     variant-field-count)
 			    ...)))
 		;; Bind the predicate and selector functions:
 		(define-values (pred-name
-				variant-name ...)
+				variant-name ...
+                                variant? ...
+                                variant-accessor ...)
 		  ;; Create a new structure for the datatype (using the
 		  ;; datatype name in `struct', so it prints nicely).
 		  (let-values ([(struct:x make-x x? acc mut)
 				(make-struct-type 'name struct:element 0 0)])
-		    ;; User-available functions:
-		    (values
-		     x? ;; The datatype predicate
-		     ;; Create the constructor functions:
-		     (let ([vname (quote variant-name)])
-		       (let ([variant-name 
-			      (lambda (field-name ...)
-				(unless (field-pred field-name)
-				  (error vname 
-					 "bad value for ~a field"
-					 (quote field-name)))
-				...
-				(make-x vname (list field-name ...)))])
-			 variant-name))
-		     ...)))))))])))
+                    (let-values ([(struct:variant make-variant variant? 
+                                                  variant-accessor variant-mutator)
+                                  (make-struct-type 'variant-name struct:x variant-field-count 0)]
+                                 ...)
+                      ;; User-available functions:
+                      (values
+                       x? ;; The datatype predicate
+                       ;; Create the constructor functions:
+                       (let ([vname (quote variant-name)])
+                         (let ([variant-name 
+                                (lambda (field-name ...)
+                                  (unless (field-pred field-name)
+                                    (error (quote variant-name)
+                                           "bad value for ~a field"
+                                           (quote field-name)))
+                                  ...
+                                  (make-variant field-name ...))])
+                           variant-name))
+                       ...
+                       variant? ...
+                       variant-accessor ...))))))))]
+        [(_ name pred-name variant ...)
+         ;; Must be a bad variant...
+         (for-each (lambda (variant)
+                     (syntax-case variant ()
+                       [(variant-name field ...)
+                        (let ([name (syntax variant-name)])
+                          (unless (identifier? name)
+                            (raise-syntax-error
+                             #f
+                             "expected an identifier for the variant name"
+                             stx
+                             name))
+                          ;; Must be a bad field:
+                          (for-each (lambda (field)
+                                      (syntax-case field ()
+                                        [(field-name field-pred)
+                                         (let ([name (syntax field-name)])
+                                           (unless (identifier? name)
+                                             (raise-syntax-error
+                                              #f
+                                              "expected an identifier for the field name"
+                                              stx
+                                              name)))]
+                                        [_else
+                                         (raise-syntax-error
+                                          #f
+                                          "expected a field name followed by a predicate expression, all in parentheses"
+                                          stx
+                                          field)]))
+                                    (syntax->list (syntax (field ...)))))]
+                       [_else
+                        (raise-syntax-error
+                         #f
+                         "expected a variant name followed by a sequence of field declarations, all in parentheses"
+                         stx
+                         variant)]))
+                   (syntax->list (syntax (variant ...))))]
+        [(_ name)
+         (raise-syntax-error
+          #f
+          "missing predicate name and variant clauses"
+          stx)])))
   
   (define-syntax cases
     (lambda (stx)
@@ -87,7 +149,8 @@
 	    clause
 	    ...)
 	 ;; Get datatype information:
-	 (let ([dt (syntax-local-value (syntax datatype) (lambda () #f))])
+	 (let ([dt (and (identifier? (syntax datatype))
+                        (syntax-local-value (syntax datatype) (lambda () #f)))])
 	   (unless (dt? dt)
 	     (raise-syntax-error 
 	      'cases 
@@ -96,7 +159,7 @@
 	      (syntax datatype)))
 	   
 	   ;; Parse clauses:
-	   (let-values ([(orig-variants field-idss bodys else-body)
+	   (let-values ([(vts field-idss bodys else-body)
 			 (let loop ([clauses (syntax->list (syntax (clause ...)))][saw-cases null])
 			   (cond
 			    [(null? clauses)
@@ -106,12 +169,13 @@
 			       (syntax-case clause (else)
 				 [(variant (field-id ...) body0 body1 ...)
 				  (let* ([variant (syntax variant)]
-					 [orig-variant
+					 [vt
 					  (ormap (lambda (dtv) 
 						   (let ([vt-name (vt-name-stx dtv)])
 						     (and (module-identifier=? variant vt-name)
-							  vt-name)))
-						 (dt-variants dt))])
+							  dtv)))
+						 (dt-variants dt))]
+                                         [orig-variant (vt-name-stx vt)])
 				    (unless orig-variant
 				      (raise-syntax-error 
 				       #f
@@ -161,9 +225,9 @@
 					 clause))
 				    
 				      ;; This clause is ok:
-				      (let-values ([(ov idss bodys else)
+				      (let-values ([(vts idss bodys else)
 						    (loop (cdr clauses) (cons orig-variant saw-cases))])
-					(values (cons orig-variant ov)
+					(values (cons vt vts)
 						(cons field-ids idss)
 						(cons (syntax (begin body0 body1 ...)) bodys)
 						else))))]
@@ -176,16 +240,43 @@
 				       stx
 				       clause))
 				    (values null null null (syntax (begin body0 body1 ...))))]
-				 
 				 [_else (raise-syntax-error
 					 #f
 					 "bad clause"
 					 stx
 					 clause)]))]))])
+             
+             ;; Missing any variants?
+             (unless (or else-body
+                         (= (length vts) (length (dt-variants dt))))
+               (let* ([here (map vt-name-stx vts)]
+                      [missing (let loop ([l (dt-variants dt)])
+                                (cond
+                                  [(null? l) ""]
+                                  [(ormap (lambda (i) (module-identifier=? (vt-name-stx (car l)) i)) here)
+                                   (loop (cdr l))]
+                                  [else
+                                   (format " ~a~a" 
+                                           (syntax-e (vt-name-stx (car l)))
+                                           (loop (cdr l)))]))])
+                 (raise-syntax-error
+                  #f
+                  (format "missing cases for the following variants:~a" missing)
+                  stx)))
 	     
 	     ;; Create the result:
 	     (with-syntax ([pred (dt-pred-stx dt)]
-			   [(orig-variant ...) orig-variants]
+			   [(variant? ...) (map vt-predicate-stx vts)]
+			   [((field-extraction ...) ...) 
+                            (map (lambda (vt)
+                                   (with-syntax ([accessor (vt-accessor-stx vt)])
+                                     (let loop ([n 0])
+                                       (if (= n (vt-field-count vt))
+                                           null
+                                           (cons (with-syntax ([n n])
+                                                   (syntax (accessor v n)))
+                                                 (loop (add1 n)))))))
+                                 vts)]
 			   [((field-id ...) ...) field-idss]
 			   [(body ...) bodys]
 			   [else-body (or else-body
@@ -196,16 +287,12 @@
 		  (if (not (pred v))
 		      (error 'case "not a ~a: ~s" 
 			     (quote datatype) v)
-		      (let* ([t (element-tag v)]
-			     [flds (element-fieldvals v)])
-			(case t
-			  [(orig-variant)
-			   (apply
-			    (lambda (field-id ...)
-			      body)
-			    flds)]
-			  ...
-			  [else else-body]))))))))])))
+                      (cond
+                        [(variant? v)
+                         (let ([field-id field-extraction] ...)
+                           body)]
+                        ...
+                        [else else-body])))))))])))
      
   (define-syntax provide-datatype
     (lambda (stx)
