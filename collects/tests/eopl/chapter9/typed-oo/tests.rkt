@@ -1,71 +1,115 @@
-(module tests mzscheme
-  
-  (provide tests-for-run tests-for-check)
-  ;;;;;;;;;;;;;;;; tests ;;;;;;;;;;;;;;;;
-  
-  (define tests-for-run
-    '(
-  
-      ;; simple arithmetic
-      (positive-const "11" 11)
-      (negative-const "-33" -33)
-      (simple-arith-1 "-(44,33)" 11)
-  
-      ;; nested arithmetic
-      (nested-arith-left "-(-(44,33),22)" -11)
-      (nested-arith-right "-(55, -(22,11))" 44)
-  
-      ;; simple variables
-      (test-var-1 "x" 10)
-      (test-var-2 "-(x,1)" 9)
-      (test-var-3 "-(1,x)" -9)
-      
-      ;; simple unbound variables
-      (test-unbound-var-1 "foo" error)
-      (test-unbound-var-2 "-(x,foo)" error)
-  
-      ;; simple conditionals
-      (if-true "if zero?(0) then 3 else 4" 3)
-      (if-false "if zero?(1) then 3 else 4" 4)
-      
-      ;; test dynamic typechecking
-      (no-bool-to-diff-1 "-(zero?(0),1)" error)
-      (no-bool-to-diff-2 "-(1,zero?(0))" error)
-      (no-int-to-if "if 1 then 2 else 3" error)
+#lang eopl
+(require tests/eopl/private/utils)
 
-      ;; make sure that the test and both arms get evaluated
-      ;; properly. 
-      (if-eval-test-true "if zero?(-(11,11)) then 3 else 4" 3)
-      (if-eval-test-false "if zero?(-(11, 12)) then 3 else 4" 4)
-      
-      ;; and make sure the other arm doesn't get evaluated.
-      (if-eval-test-true-2 "if zero?(-(11, 11)) then 3 else foo" 3)
-      (if-eval-test-false-2 "if zero?(-(11,12)) then foo else 4" 4)
+(require "data-structures.rkt")       ; for expval constructors
+(require "lang.rkt")                  ; for scan&parse
+(require "checker.rkt")               ; for type-of-program
+(require "interp.rkt")                ; for value-of-program
 
-      ;; simple let
-      (simple-let-1 "let x = 3 in x" 3)
+;; run : String -> ExpVal
+(define run
+  (lambda (string)
+    (value-of-program (scan&parse string))))
 
-      ;; make sure the body and rhs get evaluated
-      (eval-let-body "let x = 3 in -(x,1)" 2)
-      (eval-let-rhs "let x = -(4,1) in -(x,1)" 2)
+;; tcheck : String -> ExternalType
+(define tcheck
+  (lambda (string)
+    (type-to-external-form
+     (type-of-program (scan&parse string)))))
 
-      ;; check nested let and shadowing
-      (simple-nested-let "let x = 3 in let y = 4 in -(x,y)" -1)
-      (check-shadowing-in-body "let x = 3 in let x = 4 in x" 4)
-      (check-shadowing-in-rhs "let x = 3 in let x = -(x,1) in x" 2)
+(define equal-answer?
+  (lambda (ans correct-ans)
+    (equal? ans (sloppy->expval correct-ans))))
 
-      ;; simple applications
-      (apply-proc-in-rator-pos "(proc(x : int) -(x,1)  30)" 29)
-      (interp-ignores-type-info-in-proc "(proc(x : (int -> int)) -(x,1)  30)" 29)
-      (apply-simple-proc "let f = proc (x : int) -(x,1) in (f 30)" 29)
-      (let-to-proc-1 "(proc(f : (int -> int))(f 30)  proc(x : int)-(x,1))" 29)
+(define sloppy->expval 
+  (lambda (sloppy-val)
+    (cond
+      ((number? sloppy-val) (num-val sloppy-val))
+      ((boolean? sloppy-val) (bool-val sloppy-val))
+      ((list? sloppy-val) (list-val (map sloppy->expval sloppy-val)))
+      (else
+       (eopl:error 'sloppy->expval 
+                   "Can't convert sloppy value to expval: ~s"
+                   sloppy-val)))))
 
+(define-syntax-rule (check-run (name str res) ...)
+  (begin
+    (cond [(eqv? 'res 'error)
+           (check-exn always? (lambda () (run str)))]
+          [else
+           (check equal-answer? (run str) 'res (symbol->string 'name))])
+    ...))
 
-      (nested-procs "((proc (x : int) proc (y : int) -(x,y)  5) 6)" -1)
-      (nested-procs2 "let f = proc(x : int) proc (y : int) -(x,y) in ((f -(10,5)) 6)"
-        -1)
-      
-       (y-combinator-1 "
+(define-syntax-rule (check-type (name str typ) ...)
+  (begin
+    (cond [(eqv? 'typ 'error)
+           (check-exn always? (lambda () (tcheck str)))]
+          [else
+           (check equal? (tcheck str) 'typ (symbol->string 'name))])
+    ...))
+
+;;;;;;;;;;;;;;;; tests ;;;;;;;;;;;;;;;;
+(check-run
+ ;; simple arithmetic
+ (positive-const "11" 11)
+ (negative-const "-33" -33)
+ (simple-arith-1 "-(44,33)" 11)
+ 
+ ;; nested arithmetic
+ (nested-arith-left "-(-(44,33),22)" -11)
+ (nested-arith-right "-(55, -(22,11))" 44)
+ 
+ ;; simple variables
+ (test-var-1 "x" 10)
+ (test-var-2 "-(x,1)" 9)
+ (test-var-3 "-(1,x)" -9)
+ 
+ ;; simple unbound variables
+ (test-unbound-var-1 "foo" error)
+ (test-unbound-var-2 "-(x,foo)" error)
+ 
+ ;; simple conditionals
+ (if-true "if zero?(0) then 3 else 4" 3)
+ (if-false "if zero?(1) then 3 else 4" 4)
+ 
+ ;; test dynamic typechecking
+ (no-bool-to-diff-1 "-(zero?(0),1)" error)
+ (no-bool-to-diff-2 "-(1,zero?(0))" error)
+ (no-int-to-if "if 1 then 2 else 3" error)
+ 
+ ;; make sure that the test and both arms get evaluated
+ ;; properly. 
+ (if-eval-test-true "if zero?(-(11,11)) then 3 else 4" 3)
+ (if-eval-test-false "if zero?(-(11, 12)) then 3 else 4" 4)
+ 
+ ;; and make sure the other arm doesn't get evaluated.
+ (if-eval-test-true-2 "if zero?(-(11, 11)) then 3 else foo" 3)
+ (if-eval-test-false-2 "if zero?(-(11,12)) then foo else 4" 4)
+ 
+ ;; simple let
+ (simple-let-1 "let x = 3 in x" 3)
+ 
+ ;; make sure the body and rhs get evaluated
+ (eval-let-body "let x = 3 in -(x,1)" 2)
+ (eval-let-rhs "let x = -(4,1) in -(x,1)" 2)
+ 
+ ;; check nested let and shadowing
+ (simple-nested-let "let x = 3 in let y = 4 in -(x,y)" -1)
+ (check-shadowing-in-body "let x = 3 in let x = 4 in x" 4)
+ (check-shadowing-in-rhs "let x = 3 in let x = -(x,1) in x" 2)
+ 
+ ;; simple applications
+ (apply-proc-in-rator-pos "(proc(x : int) -(x,1)  30)" 29)
+ (interp-ignores-type-info-in-proc "(proc(x : (int -> int)) -(x,1)  30)" 29)
+ (apply-simple-proc "let f = proc (x : int) -(x,1) in (f 30)" 29)
+ (let-to-proc-1 "(proc(f : (int -> int))(f 30)  proc(x : int)-(x,1))" 29)
+ 
+ 
+ (nested-procs "((proc (x : int) proc (y : int) -(x,y)  5) 6)" -1)
+ (nested-procs2 "let f = proc(x : int) proc (y : int) -(x,y) in ((f -(10,5)) 6)"
+                -1)
+ 
+ (y-combinator-1 "
 let fix =  proc (f : bool)
             let d = proc (x : bool) proc (z : bool) ((f (x x)) z)
             in proc (n : bool) ((f (d d)) n)
@@ -73,27 +117,27 @@ in let
     t4m = proc (f : bool) proc(x : bool) if zero?(x) then 0 else -((f -(x,1)),-4)
 in let times4 = (fix t4m)
    in (times4 3)" 12)
-      
-       ;; simple letrecs
-      (simple-letrec-1 "letrec int f(x : int) = -(x,1) in (f 33)" 32)
-      (simple-letrec-2
-        "letrec int f(x : int) = if zero?(x)  then 0 else -((f -(x,1)), -2) in (f 4)"
-        8)
-
-      (simple-letrec-3
-        "let m = -5 
+ 
+ ;; simple letrecs
+ (simple-letrec-1 "letrec int f(x : int) = -(x,1) in (f 33)" 32)
+ (simple-letrec-2
+  "letrec int f(x : int) = if zero?(x)  then 0 else -((f -(x,1)), -2) in (f 4)"
+  8)
+ 
+ (simple-letrec-3
+  "let m = -5 
  in letrec int f(x : int) = if zero?(x) then 0 else -((f -(x,1)), m) in (f 4)"
-        20)
-
-      (HO-nested-letrecs
-"letrec int even(odd : (int -> int))  = proc(x : int) if zero?(x) then 1 else (odd -(x,1))
+  20)
+ 
+ (HO-nested-letrecs
+  "letrec int even(odd : (int -> int))  = proc(x : int) if zero?(x) then 1 else (odd -(x,1))
    in letrec  int odd(x : int)  = if zero?(x) then 0 else ((even odd) -(x,1))
    in (odd 13)" 1)
-
-
-      ;;;;;;;;;;;;;;;; typed oop ;;;;;;;;;;;;;;;;
-
-    (test-self-1 "
+ 
+ 
+ ;;;;;;;;;;;;;;;; typed oop ;;;;;;;;;;;;;;;;
+ 
+ (test-self-1 "
 class c extends object 
          field int s
          method void initialize(v : int)set s = v
@@ -110,8 +154,8 @@ let o = new c (11)
        set t2 = send o gets();
        list(t1,t2)
       end" (11 13))
-
-    (counter-1 "
+ 
+ (counter-1 "
 class counter extends object
   field int count
    method void initialize()set count = 0
@@ -128,8 +172,8 @@ in begin
     list(t1,t2)
 end
 " (0 1))
-
-    (shared-counter-1 "
+ 
+ (shared-counter-1 "
 class counter extends object
   field int count
    method void initialize()set count = 0
@@ -162,9 +206,9 @@ in begin
            send o2 getstate())
    end
 " ((1 3) (2 3)))
-
-
-    (inherit-1 "
+ 
+ 
+ (inherit-1 "
 class c1 extends object 
   field int ivar1
   method void initialize()set ivar1 = 1
@@ -186,8 +230,8 @@ in begin
        send o getiv1()
    end                      
 " 33)
-
-    (inherit-3 "
+ 
+ (inherit-3 "
 class c1 extends object 
   method int initialize()1
   method int m1()1
@@ -209,8 +253,8 @@ in list( send o m1(),
          send o m3()
         )
 " (3 2 1))
-
-    (chris-1 "
+ 
+ (chris-1 "
 class aclass extends object 
   field int i
   method void initialize(x : int) set i = x
@@ -218,8 +262,8 @@ class aclass extends object
   
 let o1 = new aclass(3)
 in send o1 m(2)" 5)
-
-    (chris-2 "
+ 
+ (chris-2 "
 class c1 extends object 
   method int initialize() 1
   method int ma()1
@@ -231,8 +275,8 @@ class c2 extends c1   % just use c1's initialize
 let x = new c2 ()
 in list(send x ma(),send x mb())
 " (2 2))
-
-    (for-book-1 "
+ 
+ (for-book-1 "
 class c1 extends object 
   field int i
   field int j
@@ -249,17 +293,17 @@ in begin
     set t2 = send o1 getstate();
     list(t1,t2)
    end" ((3 -3) (5 -5)))
-
-
-    (odd-even-via-self "
+ 
+ 
+ (odd-even-via-self "
 class oddeven extends object 
   method int initialize()1
   method bool even(n : int)if zero?(n) then 1 else send self odd(-(n,1))
   method bool odd(n : int) if zero?(n) then 0 else send self even(-(n,1))
   
 let o1 = new oddeven() in send o1 odd(13)" 1)
-
-    (for-book-2 "
+ 
+ (for-book-2 "
 class c1 extends object 
   method int initialize()1
   method int m1()1
@@ -280,8 +324,8 @@ in list(send o1 m1(),           % returns 1
         send o2 m3()            % returns 2 (c1's m3 calls c2's m2)
        )
 " (1 100 100 1 2 2))
-
-    (sum-leaves "
+ 
+ (sum-leaves "
 class tree extends object 
   method int initialize()1
   
@@ -306,8 +350,8 @@ let o1 = new interior_node (
           new leaf_node(5))
 in send o1 sum()
 " 12)
-
-    (sum-leaves-2 "
+ 
+ (sum-leaves-2 "
 interface tree
   method int sum (l : tree, r : tree)
   
@@ -332,8 +376,8 @@ let o1 = new interior_node (
           new leaf_node(5))
 in send o1 sum()
 " 12)
-
-    (sum-leaves-with-abstract-method "
+ 
+ (sum-leaves-with-abstract-method "
 interface tree
   method int sum()
   
@@ -358,9 +402,9 @@ let o1 = new interior_node (
           new leaf_node(5))
 in send o1 sum()
 " 12)
-
-
-    (equal-trees-1 "
+ 
+ 
+ (equal-trees-1 "
 interface tree
   method int sum()
   method bool equal(t : tree)
@@ -401,16 +445,16 @@ let o1 = new interior_node (
           new leaf_node(5))
 in send o1 equal(o1)
 " #t)
-
-    (good-instanceof-1 "
+ 
+ (good-instanceof-1 "
 class c1 extends object 
  method int initialize () 1
 class c2 extends object 
  method int initialize () 2
 let p = proc (o : c1) instanceof o c2 in 11
 " 11)
-
-    (up-cast-1 "
+ 
+ (up-cast-1 "
 class c1 extends object 
   method int initialize ()1
   method int get()2
@@ -418,8 +462,8 @@ class c1 extends object
 class c2 extends c1 
 let f = proc (o : c2) send cast o c1 get() in (f new c2())
 " 2)
-
-    (up-instance-1 "
+ 
+ (up-instance-1 "
 class c1 extends object 
   method int initialize ()1
   method int get()2
@@ -427,16 +471,16 @@ class c1 extends object
 class c2 extends c1 
 let f = proc (o : c2) instanceof o c1 in (f new c2())
 " #t)
-
-    (duplicate-methods-1 "
+ 
+ (duplicate-methods-1 "
 class c1 extends object
   method int initialize() 1
 class c2 extends c1
   method int m1() 1
   method int m1() 2
 33" 33)
-
-    (incomparable-instanceof-2 "
+ 
+ (incomparable-instanceof-2 "
 class c1 extends object 
   method int initialize ()1
   method int get()2
@@ -446,8 +490,8 @@ class c2 extends object
     
 let f = proc (o : c2) if instanceof o c1 then 1 else 2 in (f new c2())
 " 2)
-
-    (equal-trees-by-double-dispatch "
+ 
+ (equal-trees-by-double-dispatch "
 interface tree
   method int sum()
   method bool equal(t : tree)
@@ -487,8 +531,8 @@ let o1 = new interior_node (
           new leaf_node(5))
 in send o1 equal(o1)
 " #t)
-
-    (goldberg-80 "
+ 
+ (goldberg-80 "
 class c1 extends object 
   method int initialize () 1
   method int test () 1
@@ -513,165 +557,164 @@ in list(send o3 test(),
         send o3 result3 (),
         send o4 result3 ())
 " (2 4 2 4 2 2))
+ 
+ )
 
-      ))
-
-  (define tests-for-check
-    '(
-      ;; tests from run-tests:
-  
-      ;; simple arithmetic
-      (positive-const "11" int)
-      (negative-const "-33" int)
-      (simple-arith-1 "-(44,33)" int)
-  
-      ;; nested arithmetic
-      (nested-arith-left "-(-(44,33),22)" int)
-      (nested-arith-right "-(55, -(22,11))" int)
-  
-      ;; simple variables
-      (test-var-1 "x" int)
-      (test-var-2 "-(x,1)" int)
-      (test-var-3 "-(1,x)" int)
-
-      (zero-test-1 "zero?(-(3,2))" bool)
-      (zero-test-2 "-(2,zero?(0))" error)
-      
-      ;; simple unbound variables
-      (test-unbound-var-1 "foo" error)
-      (test-unbound-var-2 "-(x,foo)" error)
-  
-      ;; simple conditionals
-      (if-true "if zero?(1) then 3 else 4" int)
-      (if-false "if zero?(0) then 3 else 4" int)
-
-      ;; make sure that the test and both arms get evaluated
-      ;; properly. 
-      (if-eval-test-true "if zero?(-(11,12)) then 3 else 4" int)
-      (if-eval-test-false "if zero?(-(11, 11)) then 3 else 4" int)
-      (if-eval-then "if zero?(1) then -(22,1) else -(22,2)" int)
-      (if-eval-else "if zero?(0) then -(22,1) else -(22,2)" int)
-      
-      ;; make sure types of arms agree (new for lang5-1)
-      
-      (if-compare-arms "if zero?(0) then 1 else zero?(1)" error)
-      (if-check-test-is-boolean "if 1 then 11 else 12" error)
-
-      ;; simple let
-      (simple-let-1 "let x = 3 in x" int)
-
-      ;; make sure the body and rhs get evaluated
-      (eval-let-body "let x = 3 in -(x,1)" int)
-      (eval-let-rhs "let x = -(4,1) in -(x,1)" int)
-
-      ;; check nested let and shadowing
-      (simple-nested-let "let x = 3 in let y = 4 in -(x,y)" int)
-      (check-shadowing-in-body "let x = 3 in let x = 4 in x" int)
-      (check-shadowing-in-rhs "let x = 3 in let x = -(x,1) in x" int)
-
-      ;; simple applications
-      (apply-proc-in-rator-pos "(proc(x : int) -(x,1)  30)" int)
-      (checker-doesnt-ignore-type-info-in-proc 
-        "(proc(x : (int -> int)) -(x,1)  30)"
-        error) 
-      (apply-simple-proc "let f = proc (x : int) -(x,1) in (f 30)" int)
-      (let-to-proc-1 "(proc(f : (int -> int))(f 30)  proc(x : int)-(x,1))" int)
-
-
-      (nested-procs "((proc (x : int) proc (y : int) -(x,y)  5) 6)" int)
-      (nested-procs2
-        "let f = proc (x : int) proc (y : int) -(x,y) in ((f -(10,5)) 3)"
-        int)
-      
-      ;; simple letrecs
-      (simple-letrec-1 "letrec int f(x : int) = -(x,1) in (f 33)" int)
-      (simple-letrec-2
-        "letrec int f(x : int) = if zero?(x) then 0 else -((f -(x,1)), -2) in (f 4)"
-        int)
-
-      (simple-letrec-3
-        "let m = -5 
+(check-type
+ ;; tests from run-tests:
+ 
+ ;; simple arithmetic
+ (positive-const "11" int)
+ (negative-const "-33" int)
+ (simple-arith-1 "-(44,33)" int)
+ 
+ ;; nested arithmetic
+ (nested-arith-left "-(-(44,33),22)" int)
+ (nested-arith-right "-(55, -(22,11))" int)
+ 
+ ;; simple variables
+ (test-var-1 "x" int)
+ (test-var-2 "-(x,1)" int)
+ (test-var-3 "-(1,x)" int)
+ 
+ (zero-test-1 "zero?(-(3,2))" bool)
+ (zero-test-2 "-(2,zero?(0))" error)
+ 
+ ;; simple unbound variables
+ (test-unbound-var-1 "foo" error)
+ (test-unbound-var-2 "-(x,foo)" error)
+ 
+ ;; simple conditionals
+ (if-true "if zero?(1) then 3 else 4" int)
+ (if-false "if zero?(0) then 3 else 4" int)
+ 
+ ;; make sure that the test and both arms get evaluated
+ ;; properly. 
+ (if-eval-test-true "if zero?(-(11,12)) then 3 else 4" int)
+ (if-eval-test-false "if zero?(-(11, 11)) then 3 else 4" int)
+ (if-eval-then "if zero?(1) then -(22,1) else -(22,2)" int)
+ (if-eval-else "if zero?(0) then -(22,1) else -(22,2)" int)
+ 
+ ;; make sure types of arms agree (new for lang5-1)
+ 
+ (if-compare-arms "if zero?(0) then 1 else zero?(1)" error)
+ (if-check-test-is-boolean "if 1 then 11 else 12" error)
+ 
+ ;; simple let
+ (simple-let-1 "let x = 3 in x" int)
+ 
+ ;; make sure the body and rhs get evaluated
+ (eval-let-body "let x = 3 in -(x,1)" int)
+ (eval-let-rhs "let x = -(4,1) in -(x,1)" int)
+ 
+ ;; check nested let and shadowing
+ (simple-nested-let "let x = 3 in let y = 4 in -(x,y)" int)
+ (check-shadowing-in-body "let x = 3 in let x = 4 in x" int)
+ (check-shadowing-in-rhs "let x = 3 in let x = -(x,1) in x" int)
+ 
+ ;; simple applications
+ (apply-proc-in-rator-pos "(proc(x : int) -(x,1)  30)" int)
+ (checker-doesnt-ignore-type-info-in-proc 
+  "(proc(x : (int -> int)) -(x,1)  30)"
+  error) 
+ (apply-simple-proc "let f = proc (x : int) -(x,1) in (f 30)" int)
+ (let-to-proc-1 "(proc(f : (int -> int))(f 30)  proc(x : int)-(x,1))" int)
+ 
+ 
+ (nested-procs "((proc (x : int) proc (y : int) -(x,y)  5) 6)" int)
+ (nested-procs2
+  "let f = proc (x : int) proc (y : int) -(x,y) in ((f -(10,5)) 3)"
+  int)
+ 
+ ;; simple letrecs
+ (simple-letrec-1 "letrec int f(x : int) = -(x,1) in (f 33)" int)
+ (simple-letrec-2
+  "letrec int f(x : int) = if zero?(x) then 0 else -((f -(x,1)), -2) in (f 4)"
+  int)
+ 
+ (simple-letrec-3
+  "let m = -5 
  in letrec int f(x : int) = if zero?(x) then -((f -(x,1)), m) else 0 in (f 4)"
-        int)
-
-      (double-it "
+  int)
+ 
+ (double-it "
 letrec int double (n : int) = if zero?(n) then 0 
                                   else -( (double -(n,1)), -2)
 in (double 3)"
-        int)
-
-      ;; tests of expressions that produce procedures
-
-      (build-a-proc-typed "proc (x : int) -(x,1)" (int -> int))
-
-      (build-a-proc-typed-2 "proc (x : int) zero?(-(x,1))" (int -> bool))
-      
-      (bind-a-proc-typed
-        "let f = proc (x : int) -(x,1) in (f 4)"
-        int) 
-
-      (bind-a-proc-return-proc
-        "let f = proc (x : int) -(x,1) in f"
-        (int -> int))
-
-      (type-a-ho-proc-1
-        "proc(f : (int -> bool)) (f 3)"
-        ((int  -> bool) -> bool))
-
-      (type-a-ho-proc-2
-        "proc(f : (bool -> bool)) (f 3)"
-        error)
-
-      (apply-a-ho-proc
-        "proc (x : int) proc (f : (int -> bool)) (f x)"
-        (int -> ((int -> bool) -> bool)))
-
-      (apply-a-ho-proc-2
-        "proc (x : int) proc (f : (int -> (int -> bool))) (f x)"
-        (int -> ((int -> (int -> bool)) -> (int -> bool))) )
-
-      (apply-a-ho-proc-3
-        "proc (x : int) proc (f : (int -> (int -> bool))) (f zero?(x))"
-	error)
-
-      (apply-curried-proc
-        "((proc(x : int) proc (y : int)-(x,y)  4) 3)"
-        int)
-
-      (apply-a-proc-2-typed
-        "(proc (x : int) -(x,1) 4)" 
-        int)
-
-      (apply-a-letrec "
+            int)
+ 
+ ;; tests of expressions that produce procedures
+ 
+ (build-a-proc-typed "proc (x : int) -(x,1)" (int -> int))
+ 
+ (build-a-proc-typed-2 "proc (x : int) zero?(-(x,1))" (int -> bool))
+ 
+ (bind-a-proc-typed
+  "let f = proc (x : int) -(x,1) in (f 4)"
+  int) 
+ 
+ (bind-a-proc-return-proc
+  "let f = proc (x : int) -(x,1) in f"
+  (int -> int))
+ 
+ (type-a-ho-proc-1
+  "proc(f : (int -> bool)) (f 3)"
+  ((int  -> bool) -> bool))
+ 
+ (type-a-ho-proc-2
+  "proc(f : (bool -> bool)) (f 3)"
+  error)
+ 
+ (apply-a-ho-proc
+  "proc (x : int) proc (f : (int -> bool)) (f x)"
+  (int -> ((int -> bool) -> bool)))
+ 
+ (apply-a-ho-proc-2
+  "proc (x : int) proc (f : (int -> (int -> bool))) (f x)"
+  (int -> ((int -> (int -> bool)) -> (int -> bool))) )
+ 
+ (apply-a-ho-proc-3
+  "proc (x : int) proc (f : (int -> (int -> bool))) (f zero?(x))"
+  error)
+ 
+ (apply-curried-proc
+  "((proc(x : int) proc (y : int)-(x,y)  4) 3)"
+  int)
+ 
+ (apply-a-proc-2-typed
+  "(proc (x : int) -(x,1) 4)" 
+  int)
+ 
+ (apply-a-letrec "
 letrec int f(x : int) = -(x,1)
 in (f 40)"
-        int)
-
-      (letrec-non-shadowing
-   "(proc (x : int)
+                 int)
+ 
+ (letrec-non-shadowing
+  "(proc (x : int)
       letrec bool loop(x : bool) =(loop x)
        in x
      1)"
-        int)
-
-
-      (letrec-return-fact "
+  int)
+ 
+ 
+ (letrec-return-fact "
 let times = proc (x : int) proc (y : int) -(x,y)    % not really times
 in letrec 
      int fact(x : int) = if zero?(x) then 1 else ((times x) (fact -(x,1)))
    in fact"
-        (int -> int))
-
-      (letrec-apply-fact "
+                     (int -> int))
+ 
+ (letrec-apply-fact "
 let times = proc (x : int) proc (y : int) -(x,y)    % not really times
 in letrec 
      int fact(x : int) = if zero?(x) then 1 else ((times x) (fact -(x,1)))
    in (fact 4)"
-        int)
-
-      ;; oop tests
-      ;; these should all check.
-    (test-self-1 "
+                    int)
+ 
+ ;; oop tests
+ ;; these should all check.
+ (test-self-1 "
 class c extends object 
          field int s
          method void initialize(v : int)set s = v
@@ -688,8 +731,8 @@ let o = new c (11)
        set t2 = send o gets();
        list(t1,t2)
       end" (listof int))
-
-    (counter-1 "
+ 
+ (counter-1 "
 class counter extends object
   field int count
    method void initialize()set count = 0
@@ -706,8 +749,8 @@ in begin
     list(t1,t2)
 end
 " (listof int))
-
-    (shared-counter-1 "
+ 
+ (shared-counter-1 "
 class counter extends object
   field int count
    method void initialize()set count = 0
@@ -740,9 +783,9 @@ in begin
            send o2 getstate())
    end
 " (listof (listof int)))
-
-
-    (inherit-1 "
+ 
+ 
+ (inherit-1 "
 class c1 extends object 
   field int ivar1
   method void initialize()set ivar1 = 1
@@ -764,8 +807,8 @@ in begin
        send o getiv1()
    end                      
 " int)
-
-    (inherit-3 "
+ 
+ (inherit-3 "
 class c1 extends object 
   method int initialize()1
   method int m1()1
@@ -787,8 +830,8 @@ in list( send o m1(),
          send o m3()
         )
 " (listof int))
-
-    (chris-1 "
+ 
+ (chris-1 "
 class aclass extends object 
   field int i
   method void initialize(x : int) set i = x
@@ -796,8 +839,8 @@ class aclass extends object
   
 let o1 = new aclass(3)
 in send o1 m(2)" int)
-
-    (chris-2 "
+ 
+ (chris-2 "
 class c1 extends object 
   method int initialize() 1
   method int ma()1
@@ -809,8 +852,8 @@ class c2 extends c1   % just use c1's initialize
 let x = new c2 ()
 in list(send x ma(),send x mb())
 " (listof int))
-
-    (for-book-1 "
+ 
+ (for-book-1 "
 class c1 extends object 
   field int i
   field int j
@@ -827,16 +870,16 @@ in begin
     set t2 = send o1 getstate();
     list(t1,t2)
    end" (listof (listof int)))
-
-    (odd-even-via-self "
+ 
+ (odd-even-via-self "
 class oddeven extends object 
   method int initialize()1
   method int even(n : int)if zero?(n) then 1 else send self odd(-(n,1))
   method int odd(n : int) if zero?(n) then 0 else send self even(-(n,1))
   
 let o1 = new oddeven() in send o1 odd(13)" int)
-
-    (for-book-2 "
+ 
+ (for-book-2 "
 class c1 extends object 
   method int initialize()1
   method int m1()1
@@ -857,8 +900,8 @@ in list(send o1 m1(),           % returns 1
         send o2 m3()            % returns 2 (c1's m3 calls c2's m2)
        )
 " (listof int))
-
-    (sum-leaves "
+ 
+ (sum-leaves "
 class tree extends object 
   method int initialize()1
   
@@ -883,8 +926,8 @@ let o1 = new interior_node (
           new leaf_node(5))
 in send o1 sum()
 " error)
-
-    (sum-leaves-1.5 "
+ 
+ (sum-leaves-1.5 "
 class tree extends object 
   method int initialize()1
   method int sum () 17
@@ -910,9 +953,9 @@ let o1 = new interior_node (
           new leaf_node(5))
 in send o1 sum()
 " int)
-
-
-    (sum-leaves-2 "
+ 
+ 
+ (sum-leaves-2 "
 interface tree
   method int sum (l : tree, r : tree)
   
@@ -937,8 +980,8 @@ let o1 = new interior_node (
           new leaf_node(5))
 in send o1 sum()
 " error)
-
-    (sum-leaves-with-abstract-method "
+ 
+ (sum-leaves-with-abstract-method "
 interface tree
   method int sum()
   
@@ -965,9 +1008,9 @@ let o1 = new interior_node (
           new leaf_node(5))
 in send o1 sum()
 " int)
-
-
-    (equal-trees-1 "
+ 
+ 
+ (equal-trees-1 "
 interface tree
   method int sum()
   method bool equal(t : tree)
@@ -1010,16 +1053,16 @@ let o1 = new interior_node (
           new leaf_node(5))
 in send o1 equal(o1)
 " bool)
-
-    (good-instanceof-1 "
+ 
+ (good-instanceof-1 "
 class c1 extends object 
  method int initialize () 1
 class c2 extends object 
  method int initialize () 2
 let p = proc (o : c1) instanceof o c2 in 11
 " int)
-
-    (up-cast-1 "
+ 
+ (up-cast-1 "
 class c1 extends object 
   method int initialize ()1
   method int get()2
@@ -1027,8 +1070,8 @@ class c1 extends object
 class c2 extends c1 
 let f = proc (o : c2) send cast o c1 get() in (f new c2())
 " int)
-
-    (up-instance-1 "
+ 
+ (up-instance-1 "
 class c1 extends object 
   method int initialize ()1
   method int get()2
@@ -1036,16 +1079,16 @@ class c1 extends object
 class c2 extends c1 
 let f = proc (o : c2) instanceof o c1 in (f new c2())
 " bool)
-
-    (duplicate-methods-1 "
+ 
+ (duplicate-methods-1 "
 class c1 extends object
   method int initialize() 1
 class c2 extends c1
   method int m1() 1
   method int m1() 2
 33" error)
-
-    (incomparable-instanceof-2 "
+ 
+ (incomparable-instanceof-2 "
 class c1 extends object 
   method int initialize ()1
   method int get()2
@@ -1055,8 +1098,8 @@ class c2 extends object
     
 let f = proc (o : c2) if instanceof o c1 then 1 else 2 in (f new c2())
 " int)
-
-    (equal-trees-by-double-dispatch "
+ 
+ (equal-trees-by-double-dispatch "
 interface tree
   method int sum()
   method bool equal(t : tree)
@@ -1098,8 +1141,8 @@ let o1 = new interior_node (
           new leaf_node(5))
 in send o1 equal(o1)
 " bool)
-
-    (goldberg-80 "
+ 
+ (goldberg-80 "
 class c1 extends object 
   method int initialize () 1
   method int test () 1
@@ -1124,9 +1167,9 @@ in list(send o3 test(),
         send o3 result3 (),
         send o4 result3 ())
 "
-      (listof int))
-
-    (check-interface-implementation-1 "
+              (listof int))
+ 
+ (check-interface-implementation-1 "
 interface i1 
  method int foo ()
 
@@ -1136,9 +1179,9 @@ class c1 extends object
  method int bar () 27
 
 13"
-      error)
-
-    (check-interface-implementation-2 "
+                                   error)
+ 
+ (check-interface-implementation-2 "
 interface i1 
  method int foo ()
 
@@ -1148,20 +1191,20 @@ class c1 extends object
  method bool foo () 27
 
 13"
-      error)
-
-    ;; with exercise 9.34, this should become an error
-
-    (bad-cast-1 "
+                                   error)
+ 
+ ;; with exercise 9.34, this should become an error
+ 
+ (bad-cast-1 "
 class c1 extends object 
  method int initialize () 1
 class c2 extends object 
  method int initialize () 2
 proc (o : c1) cast o c2
 "
-      (c1 -> c2))
-
-    (missing-initialize-method-1 "
+             (c1 -> c2))
+ 
+ (missing-initialize-method-1 "
 class c1 extends object 
   method int initialize ()1
   method int get()2
@@ -1169,18 +1212,18 @@ class c1 extends object
 class c2 extends object   % no initialize method!
 let f = proc (o : c2) instanceof o c1 in (f new c2())
 "
-      error)
-
-    (duplicate-methods-1 "
+                              error)
+ 
+ (duplicate-methods-1 "
 class c1 extends object
   method int initialize() 1
 class c2 extends c1
   method int m1() 1
   method int m1() 2
 33"
-      error)
-
-    (incomparable-instanceof-2 "
+                      error)
+ 
+ (incomparable-instanceof-2 "
 class c1 extends object 
   method int initialize ()1
   method int get()2
@@ -1190,11 +1233,11 @@ class c2 extends object
     
 let f = proc (o : c2) if instanceof o c1 then 1 else 2 in (f new c2())
 "
-      ;; this is stupid but legal
-      ;; exercise: make this illegal (9.34)
-      int)
-
-    (bad-super-1 "
+                            ;; this is stupid but legal
+                            ;; exercise: make this illegal (9.34)
+                            int)
+ 
+ (bad-super-1 "
 class c1 extends object 
  method int initialize() 1
  
@@ -1207,9 +1250,9 @@ class c3 extends c2
 class c4 extends c3 
 let o = new c4() in send o m1()
 "
-      error)
-
-    (unsupplied-method-2 "
+              error)
+ 
+ (unsupplied-method-2 "
 interface c1 
   method int m1() 
   
@@ -1218,9 +1261,9 @@ class c2 extends object implements c1
   method int m2 ()send self m1()
   
 33"
-      error)
-
-    (overriding-method-changes-type-1 "
+                      error)
+ 
+ (overriding-method-changes-type-1 "
 class c1 extends object 
   method int initialize () 1
   method int m1() 22
@@ -1229,9 +1272,9 @@ class c2 extends c1
   method bool m1() zero?(0)
   
 33"
-      error)
-
-    (test6-3-1 "
+                                   error)
+ 
+ (test6-3-1 "
 class c1 extends object
  method int initialize () 1 
  method int m1 () 11
@@ -1246,30 +1289,30 @@ class c4 extends c3
  method int m2 () 42 
 proc (o : c3) send o m2()
 "
-      (c3 -> int))
-
-    ;; here c2 is bad, so the interprter runs successfully and returns
-    ;; false. 
-    (bad-instance-of-1 "
+            (c3 -> int))
+ 
+ ;; here c2 is bad, so the interprter runs successfully and returns
+ ;; false. 
+ (bad-instance-of-1 "
 class c1 extends object
  method int initialize () 1
 
 instanceof new c1() c2"
-      bool)
-
-    ;; here c1 is unrelated to c2, so the interpreter runs
-    ;; successfully and returns false.
-    (bad-instance-of-2 "
+                    bool)
+ 
+ ;; here c1 is unrelated to c2, so the interpreter runs
+ ;; successfully and returns false.
+ (bad-instance-of-2 "
 class c1 extends object
  method int initialize () 1
 
 interface c2
 
 instanceof new c1() c2"
-      bool)
-      
-      
-      )
-  ))
+                    bool)
+ 
+ 
+ )
+
 
 
