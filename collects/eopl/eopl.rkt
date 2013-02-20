@@ -1,10 +1,12 @@
-#lang racket
+#lang racket/base
 
 (require "datatype.rkt"
          "private/sllgen.rkt"
-         mzlib/trace
-         mzlib/pretty)
-(require (for-syntax "private/slldef.rkt"))
+         racket/promise
+         racket/trace
+         racket/pretty)
+(require (for-syntax racket/base
+                     "private/slldef.rkt"))
 
 (provide define-datatype
          cases)
@@ -142,16 +144,14 @@
          trace untrace   ;; debugging
          require module  ;; we allow full use of modules
          only-in
-	 prefix-in
+         prefix-in
          provide         ;; in case someone wants to use a module
-	 all-defined-out
+         all-defined-out
          all-from-out    ;; surely some subforms are missing
-	 rename-out
+         rename-out
          make-parameter
          parameterize
          print-struct)
-
-(require mzlib/transcr)
 
 (provide unquote unquote-splicing
          quote quasiquote if when unless
@@ -177,7 +177,7 @@
          exact->inexact inexact->exact number->string string->number
          rationalize output-port? current-input-port current-output-port current-error-port
          open-input-file open-output-file close-input-port close-output-port
-         with-output-to-file transcript-on transcript-off flush-output
+         with-output-to-file flush-output
          string-length string-ci<=? string-ci>=? string-append
          string-fill!
          string->list list->string
