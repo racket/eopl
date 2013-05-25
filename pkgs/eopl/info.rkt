@@ -1,5 +1,5 @@
 #lang setup/infotab
 
-(require string-constants)
+(define single-collection "eopl")
 
 (define scribblings '(("eopl.scrbl" () (teaching -20))))
