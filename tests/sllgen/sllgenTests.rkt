@@ -1,3 +1,5 @@
+#lang eopl
+
 sllgen:make-string-parser
 sllgen:make-stream-parser
 sllgen:make-stream-scanner

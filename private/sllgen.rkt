@@ -20,7 +20,8 @@
          sllgen:make-string-scanner
          sllgen:make-define-datatypes
          sllgen:show-define-datatypes
-         sllgen:list-define-datatypes)
+         sllgen:list-define-datatypes
+         sllgen:make-rep-loop)
 
 #; ; this was originally quoted, probably intended as a comment
 (let ((time-stamp "Time-stamp: <2000-09-25 11:48:47 wand>"))
