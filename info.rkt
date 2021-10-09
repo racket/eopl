@@ -11,3 +11,6 @@
 (define pkg-desc "Teaching language for _Essentials of Programming Languages_")
 
 (define pkg-authors '(dvanhorn))
+
+(define license
+  '(Apache-2.0 OR MIT))
