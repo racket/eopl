@@ -6,7 +6,8 @@
 (define scribblings '(("eopl.scrbl" () (teaching -20))))
 (define build-deps '("rackunit-lib"
                      "racket-doc"
-                     "scribble-lib"))
+                     "scribble-lib"
+                     "scheme-doc"))
 
 (define pkg-desc "Teaching language for _Essentials of Programming Languages_")
 
